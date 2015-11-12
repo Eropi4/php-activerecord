@@ -821,7 +821,7 @@ class Errors implements IteratorAggregate
 		$full_messages = array();
 
 		$this->to_array(function($attribute, $message) use (&$full_messages) {
-			$full_messages[] = $message;
+			$full_messages[$attribute] = $message;
 		});
 
 		return $full_messages;
