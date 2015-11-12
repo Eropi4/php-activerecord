@@ -631,28 +631,29 @@ class Errors implements IteratorAggregate
 {
 	private $model;
 	private $errors;
+	private $gettext_available;
 
 	public static $DEFAULT_ERROR_MESSAGES = array(
-		'inclusion'    => "is not included in the list",
-		'exclusion'    => "is reserved",
-		'invalid'      => "is invalid",
-		'confirmation' => "doesn't match confirmation",
-		'accepted'     => "must be accepted",
-		'empty'        => "can't be empty",
-		'blank'        => "can't be blank",
-		'too_long'     => "is too long (maximum is %d characters)",
-		'too_short'    => "is too short (minimum is %d characters)",
-		'wrong_length' => "is the wrong length (should be %d characters)",
-		'taken'        => "has already been taken",
-		'not_a_number' => "is not a number",
-		'greater_than' => "must be greater than %d",
-		'equal_to'     => "must be equal to %d",
-		'less_than'    => "must be less than %d",
-		'odd'          => "must be odd",
-		'even'         => "must be even",
-		'unique'       => "must be unique",
-		'less_than_or_equal_to' => "must be less than or equal to %d",
-		'greater_than_or_equal_to' => "must be greater than or equal to %d"
+		'inclusion'    => "%s is not included in the list",
+		'exclusion'    => "%s is reserved",
+		'invalid'      => "%s is invalid",
+		'confirmation' => "%s doesn't match confirmation",
+		'accepted'     => "%s must be accepted",
+		'empty'        => "%s can't be empty",
+		'blank'        => "%s can't be blank",
+		'too_long'     => "%s is too long (maximum is %d characters)",
+		'too_short'    => "%s is too short (minimum is %d characters)",
+		'wrong_length' => "%s is the wrong length (should be %d characters)",
+		'taken'        => "%s has already been taken",
+		'not_a_number' => "%s is not a number",
+		'greater_than' => "%s must be greater than %d",
+		'equal_to'     => "%s must be equal to %d",
+		'less_than'    => "%s must be less than %d",
+		'odd'          => "%s must be odd",
+		'even'         => "%s must be even",
+		'unique'       => "%s must be unique",
+		'less_than_or_equal_to' => "%s must be less than or equal to %d",
+		'greater_than_or_equal_to' => "%s must be greater than or equal to %d"
 	);
 
 	/**
@@ -664,6 +665,7 @@ class Errors implements IteratorAggregate
 	public function __construct(Model $model)
 	{
 		$this->model = $model;
+		$this->gettext_available = function_exists('gettext');
 	}
 
 	/**
@@ -747,17 +749,40 @@ class Errors implements IteratorAggregate
 		return isset($this->errors[$attribute]);
 	}
 
+	protected function _translate_error($attribute, $error) {
+		if($this->gettext_available) {
+			$attribute = gettext(Utils::human_attribute($attribute));
+			$error = gettext($error);
+		}
+		else {
+			$attribute = Utils::human_attribute($attribute);
+		}
+		return sprintf($error, $attribute);
+	}
+
+	protected function _obtain_error($attribute, $errors) {
+		if(!is_array($errors)) $errors = [$errors];
+
+		foreach ($errors as &$error) {
+			$error = $this->_translate_error($attribute, $error);
+		}
+
+		return count($errors) == 1 ? $errors[0] : $errors;
+	}
+
 	/**
 	 * Returns the error message(s) for the specified attribute or null if none.
 	 *
 	 * @param string $attribute Name of an attribute on the model
+	 * @param bool $raw
 	 * @return string/array	Array of strings if several error occured on this attribute.
 	 */
-	public function on($attribute)
+	public function on($attribute, $raw = false)
 	{
 		$errors = $this->$attribute;
+		if($errors === null) return null;
 
-		return $errors && count($errors) == 1 ? $errors[0] : $errors;
+		return $raw ? ($errors && count($errors) == 1 ? $errors[0] : $errors) : $this->_obtain_error($attribute, $errors);
 	}
 
 	/**
@@ -832,7 +857,7 @@ class Errors implements IteratorAggregate
 					if (is_null($msg))
 						continue;
 
-					$errors[$attribute][] = ($message = Utils::human_attribute($attribute) . ' ' . $msg);
+					$errors[$attribute][] = ($message = $this->_obtain_error($attribute, $msg));
 
 					if ($closure)
 						$closure($attribute,$message);
