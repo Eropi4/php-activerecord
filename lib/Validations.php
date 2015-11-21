@@ -116,7 +116,7 @@ class Validations
 			if($attrs === null && $this->klass->hasMethod($validate)) {
 				$attrs_method = $this->klass->getMethod($validate);
 				if($attrs_method->isStatic()) {
-					$attrs = $attrs_method->invoke();
+					$attrs = $attrs_method->invoke(null);
 					if(!is_array($attrs)) {
 						throw new ActiveRecordException("Invalid $validate array");
 					}
