@@ -782,7 +782,7 @@ class Errors implements IteratorAggregate
 		if(!is_array($errors)) $errors = [$errors];
 
 		foreach ($errors as &$error) {
-			$error = sprintf($error, Utils::human_attribute($attribute));
+			$error = str_replace("%s", Utils::human_attribute($attribute), $error);
 		}
 
 		return count($errors) == 1 ? $errors[0] : $errors;
