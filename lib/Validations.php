@@ -149,6 +149,16 @@ class Validations
 		foreach ($this->validators as $validate)
 		{
 			$definition = $this->klass->getStaticPropertyValue($validate);
+			if($definition === null && $this->klass->hasMethod($validate)) {
+				$attrs_method = $this->klass->getMethod($validate);
+				if($attrs_method->isStatic()) {
+					$definition = $attrs_method->invoke(null);
+					if(!is_array($definition)) {
+						throw new ActiveRecordException("Invalid $validate array");
+					}
+					$this->klass->setStaticPropertyValue($validate, $definition);
+				}
+			}
 			$this->$validate(wrap_strings_in_arrays($definition));
 		}
 
