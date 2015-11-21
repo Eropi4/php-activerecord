@@ -36,6 +36,7 @@ use ArrayIterator;
  * </code>
  *
  * @package ActiveRecord
+ * @property \ReflectionClass $klass
  * @see Errors
  * @link http://www.phpactiverecord.org/guides/validations
  */
@@ -112,6 +113,16 @@ class Validations
 		foreach ($this->validators as $validate)
 		{
 			$attrs = $this->klass->getStaticPropertyValue($validate);
+			if($attrs === null && $this->klass->hasMethod($validate)) {
+				$attrs_method = $this->klass->getMethod($validate);
+				if($attrs_method->isStatic()) {
+					$attrs = $attrs_method->invoke();
+					if(!is_array($attrs)) {
+						throw new ActiveRecordException("Invalid $validate array");
+					}
+					$this->klass->setStaticPropertyValue($validate, $attrs);
+				}
+			}
 
 			foreach (wrap_strings_in_arrays($attrs) as $attr)
 			{
@@ -174,7 +185,7 @@ class Validations
 	 */
 	public function validates_presence_of($attrs)
 	{
-		$configuration = array_merge(self::$DEFAULT_VALIDATION_OPTIONS, array('message' => Errors::$DEFAULT_ERROR_MESSAGES['blank'], 'on' => 'save'));
+		$configuration = array_merge(self::$DEFAULT_VALIDATION_OPTIONS, array('message' => Errors::('blank'), 'on' => 'save'));
 
 		foreach ($attrs as $attr)
 		{
@@ -249,7 +260,7 @@ class Validations
 	 */
 	public function validates_inclusion_or_exclusion_of($type, $attrs)
 	{
-		$configuration = array_merge(self::$DEFAULT_VALIDATION_OPTIONS, array('message' => Errors::$DEFAULT_ERROR_MESSAGES[$type], 'on' => 'save'));
+		$configuration = array_merge(self::$DEFAULT_VALIDATION_OPTIONS, array('message' => Errors::DEFAULT_ERROR_MESSAGES($type), 'on' => 'save'));
 
 		foreach ($attrs as $attr)
 		{
@@ -321,7 +332,7 @@ class Validations
 			if ($this->is_null_with_option($var, $options))
 				continue;
 
-			$not_a_number_message = (isset($options['message']) ? $options['message'] : Errors::$DEFAULT_ERROR_MESSAGES['not_a_number']);
+			$not_a_number_message = (isset($options['message']) ? $options['message'] : Errors::DEFAULT_ERROR_MESSAGES('not_a_number'));
 
 			if (true === $options['only_integer'] && !is_integer($var))
 			{
@@ -345,7 +356,7 @@ class Validations
 			foreach ($numericalityOptions as $option => $check)
 			{
 				$option_value = $options[$option];
-				$message = (isset($options['message']) ? $options['message'] : Errors::$DEFAULT_ERROR_MESSAGES[$option]);
+				$message = (isset($options['message']) ? $options['message'] : Errors::DEFAULT_ERROR_MESSAGES($option));
 
 				if ('odd' != $option && 'even' != $option)
 				{
@@ -414,7 +425,7 @@ class Validations
 	 */
 	public function validates_format_of($attrs)
 	{
-		$configuration = array_merge(self::$DEFAULT_VALIDATION_OPTIONS, array('message' => Errors::$DEFAULT_ERROR_MESSAGES['invalid'], 'on' => 'save', 'with' => null));
+		$configuration = array_merge(self::$DEFAULT_VALIDATION_OPTIONS, array('message' => Errors::DEFAULT_ERROR_MESSAGES('invalid'), 'on' => 'save', 'with' => null));
 
 		foreach ($attrs as $attr)
 		{
@@ -462,9 +473,9 @@ class Validations
 	public function validates_length_of($attrs)
 	{
 		$configuration = array_merge(self::$DEFAULT_VALIDATION_OPTIONS, array(
-			'too_long'     => Errors::$DEFAULT_ERROR_MESSAGES['too_long'],
-			'too_short'    => Errors::$DEFAULT_ERROR_MESSAGES['too_short'],
-			'wrong_length' => Errors::$DEFAULT_ERROR_MESSAGES['wrong_length']
+			'too_long'     => Errors::DEFAULT_ERROR_MESSAGES('too_long'),
+			'too_short'    => Errors::DEFAULT_ERROR_MESSAGES('too_short'),
+			'wrong_length' => Errors::DEFAULT_ERROR_MESSAGES('wrong_length')
 		));
 
 		foreach ($attrs as $attr)
@@ -563,7 +574,7 @@ class Validations
 	public function validates_uniqueness_of($attrs)
 	{
 		$configuration = array_merge(self::$DEFAULT_VALIDATION_OPTIONS, array(
-			'message' => Errors::$DEFAULT_ERROR_MESSAGES['unique']
+			'message' => Errors::DEFAULT_ERROR_MESSAGES('unique')
 		));
 		// Retrieve connection from model for quote_name method
 		$connection = $this->klass->getMethod('connection')->invoke(null);
@@ -633,28 +644,36 @@ class Errors implements IteratorAggregate
 	private $errors;
 	private $gettext_available;
 
-	public static $DEFAULT_ERROR_MESSAGES = array(
-		'inclusion'    => "%s is not included in the list",
-		'exclusion'    => "%s is reserved",
-		'invalid'      => "%s is invalid",
-		'confirmation' => "%s doesn't match confirmation",
-		'accepted'     => "%s must be accepted",
-		'empty'        => "%s can't be empty",
-		'blank'        => "%s can't be blank",
-		'too_long'     => "%s is too long (maximum is %d characters)",
-		'too_short'    => "%s is too short (minimum is %d characters)",
-		'wrong_length' => "%s is the wrong length (should be %d characters)",
-		'taken'        => "%s has already been taken",
-		'not_a_number' => "%s is not a number",
-		'greater_than' => "%s must be greater than %d",
-		'equal_to'     => "%s must be equal to %d",
-		'less_than'    => "%s must be less than %d",
-		'odd'          => "%s must be odd",
-		'even'         => "%s must be even",
-		'unique'       => "%s must be unique",
-		'less_than_or_equal_to' => "%s must be less than or equal to %d",
-		'greater_than_or_equal_to' => "%s must be greater than or equal to %d"
-	);
+	public static function DEFAULT_ERROR_MESSAGES($key = null) {
+		static $errors;
+
+		if(!isset($errors)) {
+			$errors = array(
+				'inclusion'    => pgettext("Validation", "%s is not included in the list"),
+				'exclusion'    => pgettext("Validation", "%s is reserved"),
+				'invalid'      => pgettext("Validation", "%s is invalid"),
+				'confirmation' => pgettext("Validation", "%s doesn't match confirmation"),
+				'accepted'     => pgettext("Validation", "%s must be accepted"),
+				'empty'        => pgettext("Validation", "%s can't be empty"),
+				'blank'        => pgettext("Validation", "%s can't be blank"),
+				'too_long'     => pgettext("Validation", "%s is too long (maximum is %d characters)"),
+				'too_short'    => pgettext("Validation", "%s is too short (minimum is %d characters)"),
+				'wrong_length' => pgettext("Validation", "%s is the wrong length (should be %d characters)"),
+				'taken'        => pgettext("Validation", "%s has already been taken"),
+				'not_a_number' => pgettext("Validation", "%s is not a number"),
+				'greater_than' => pgettext("Validation", "%s must be greater than %d"),
+				'equal_to'     => pgettext("Validation", "%s must be equal to %d"),
+				'less_than'    => pgettext("Validation", "%s must be less than %d"),
+				'odd'          => pgettext("Validation", "%s must be odd"),
+				'even'         => pgettext("Validation", "%s must be even"),
+				'unique'       => pgettext("Validation", "%s must be unique"),
+				'less_than_or_equal_to' => pgettext("Validation", "%s must be less than or equal to %d"),
+				'greater_than_or_equal_to' => pgettext("Validation", "%s must be greater than or equal to %d")
+			);
+		}
+
+		return $key === null ? $errors : $errors[$key];
+	}
 
 	/**
 	 * Constructs an {@link Errors} object.
@@ -703,7 +722,7 @@ class Errors implements IteratorAggregate
 	public function add_on_empty($attribute, $msg)
 	{
 		if (empty($msg))
-			$msg = self::$DEFAULT_ERROR_MESSAGES['empty'];
+			$msg = self::DEFAULT_ERROR_MESSAGES('empty');
 
 		if (empty($this->model->$attribute))
 			$this->add($attribute, $msg);
@@ -732,7 +751,7 @@ class Errors implements IteratorAggregate
 	public function add_on_blank($attribute, $msg)
 	{
 		if (!$msg)
-			$msg = self::$DEFAULT_ERROR_MESSAGES['blank'];
+			$msg = self::DEFAULT_ERROR_MESSAGES('blank');
 
 		if (($value = $this->model->$attribute) === '' || $value === null)
 			$this->add($attribute, $msg);
@@ -749,22 +768,11 @@ class Errors implements IteratorAggregate
 		return isset($this->errors[$attribute]);
 	}
 
-	protected function _translate_error($attribute, $error) {
-		if($this->gettext_available) {
-			$attribute = gettext(Utils::human_attribute($attribute));
-			$error = gettext($error);
-		}
-		else {
-			$attribute = Utils::human_attribute($attribute);
-		}
-		return sprintf($error, $attribute);
-	}
-
 	protected function _obtain_error($attribute, $errors) {
 		if(!is_array($errors)) $errors = [$errors];
 
 		foreach ($errors as &$error) {
-			$error = $this->_translate_error($attribute, $error);
+			$error = sprintf($error, Utils::human_attribute($attribute));
 		}
 
 		return count($errors) == 1 ? $errors[0] : $errors;
