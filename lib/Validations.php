@@ -185,7 +185,7 @@ class Validations
 	 */
 	public function validates_presence_of($attrs)
 	{
-		$configuration = array_merge(self::$DEFAULT_VALIDATION_OPTIONS, array('message' => Errors::('blank'), 'on' => 'save'));
+		$configuration = array_merge(self::$DEFAULT_VALIDATION_OPTIONS, array('message' => Errors::DEFAULT_ERROR_MESSAGES('blank'), 'on' => 'save'));
 
 		foreach ($attrs as $attr)
 		{
