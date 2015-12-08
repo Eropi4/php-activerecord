@@ -21,8 +21,8 @@ abstract class Connection
 {
 
 	/**
-	 * The PDO connection object.
-	 * @var mixed
+	 * The ReconnectPDO connection object.
+	 * @var ReconnectPDO
 	 */
 	public $connection;
 	/**
@@ -76,9 +76,6 @@ abstract class Connection
 	 * @var int
 	 */
 	static $DEFAULT_PORT = 0;
-
-
-	protected $_connect_info;
 
 	/**
 	 * Retrieve a database connection.
@@ -229,14 +226,14 @@ abstract class Connection
 		return $info;
 	}
 
-
-	protected function _connect() {
-
-		if($this->connection) {
-			throw new DatabaseException("Already connected");
-		}
-
-		$info = $this->_connect_info;
+	/**
+	 * Class Connection is a singleton. Access it via instance().
+	 *
+	 * @param array $info Array containing URL parts
+	 * @return Connection
+	 */
+	protected function __construct($info)
+	{
 		try {
 			// unix sockets start with a /
 			if ($info->host[0] != '/')
@@ -249,31 +246,10 @@ abstract class Connection
 			else
 				$host = "unix_socket=$info->host";
 
-			$this->connection = new PDO("$info->protocol:$host;dbname=$info->db", $info->user, $info->pass, static::$PDO_OPTIONS);
+			$this->connection = new ReconnectPDO("$info->protocol:$host;dbname=$info->db", $info->user, $info->pass, static::$PDO_OPTIONS);
 		} catch (PDOException $e) {
 			throw new DatabaseException($e);
 		}
-	}
-
-	protected function _reconnect() {
-		if(!$this->connection) {
-			throw new DatabaseException("Cannot reconnect");
-		}
-		$this->connection = null;
-		$this->_connect();
-	}
-
-	/**
-	 * Class Connection is a singleton. Access it via instance().
-	 *
-	 * @param array $info Array containing URL parts
-	 * @return Connection
-	 */
-	protected function __construct($info)
-	{
-		$info->protocol = strtolower($info->protocol);
-		$this->_connect_info = $info;
-		$this->_connect();
 	}
 
 	/**
@@ -346,16 +322,7 @@ abstract class Connection
 			if (!$sth->execute($values))
 				throw new DatabaseException($this);
 		} catch (PDOException $e) {
-			if($this->_connect_info->protocol === 'mysql' && ($e->getCode() === 'HY000' || stristr($e->getMessage(), 'server has gone away')))
-			{
-				//mysql server has gone away
-				$this->_reconnect();
-				return $this->query($sql, $values);
-			}
-			else
-			{
-				throw new DatabaseException($e);
-			}
+			throw new DatabaseException($e);
 		}
 		return $sth;
 	}
