@@ -22,7 +22,7 @@ abstract class Connection
 
 	/**
 	 * The ReconnectPDO connection object.
-	 * @var ReconnectPDO
+	 * @var \ActiveRecord\ReconnectPDO
 	 */
 	public $connection;
 	/**
@@ -322,7 +322,12 @@ abstract class Connection
 			if (!$sth->execute($values))
 				throw new DatabaseException($this);
 		} catch (PDOException $e) {
-			throw new DatabaseException($e);
+			if ($e->getCode() != 'HY000' || !stristr($e->getMessage(), 'server has gone away')) {
+				throw new DatabaseException($e);
+			}
+
+			$this->connection->reconnect();
+			return $this->query($sql, $values);
 		}
 		return $sth;
 	}
