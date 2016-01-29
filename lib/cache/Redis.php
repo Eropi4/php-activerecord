@@ -9,7 +9,7 @@ class Redis
 {
 	const DEFAULT_PORT = 6379;
 
-	/** @var \Redis */
+	/** @var \Rediska */
 	private $adapter;
 
 	/**
@@ -26,10 +26,17 @@ class Redis
 	 */
 	public function __construct($options)
 	{
-		$this->adapter = new \Redis();
+		//$this->adapter = new \Redis();
 		$options['port'] = isset($options['port']) ? $options['port'] : self::DEFAULT_PORT;
 
-		if (!$this->adapter->connect($options['host'], $options['port']))
+		$settings = [
+			'servers' => [
+				['host' => $options['host'], 'port' => $options['port']],
+			]
+		];
+		$this->adapter = new \Rediska($settings);
+
+		if (!$this->adapter)
 		{
 			throw new CacheException("Could not connect to $options[host]:$options[port]");
 		}
@@ -40,7 +47,7 @@ class Redis
 	 */
 	public function flush()
 	{
-		$this->adapter->flushDB();
+		$this->adapter->flushDb();
 	}
 
 	/**
@@ -51,7 +58,8 @@ class Redis
 	public function read($key)
 	{
 		$data = $this->adapter->get($key);
-		return $data ? unserialize($data) : null;
+
+		return $data ? $data : null;
 	}
 
 	/**
@@ -61,7 +69,7 @@ class Redis
 	 */
 	public function write($key, $value, $expire)
 	{
-		$this->adapter->setex($key, $expire, serialize($value));
+		$this->adapter->setAndExpire($key, $value, $expire);
 	}
 
 	/**
