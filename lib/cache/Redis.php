@@ -9,11 +9,11 @@ class Redis
 {
 	const DEFAULT_PORT = 6379;
 
-	/** @var \Rediska */
+	/** @var \Predis\Client */
 	private $adapter;
 
 	/**
-	 * Creates a Redis instance.
+	 * Creates a \Predis\Client instance.
 	 *
 	 * Takes an $options array w/ the following parameters:
 	 *
@@ -26,15 +26,14 @@ class Redis
 	 */
 	public function __construct($options)
 	{
-		//$this->adapter = new \Redis();
 		$options['port'] = isset($options['port']) ? $options['port'] : self::DEFAULT_PORT;
 
-		$settings = [
-			'servers' => [
-				['host' => $options['host'], 'port' => $options['port']],
-			]
-		];
-		$this->adapter = new \Rediska($settings);
+		$this->adapter = new \Predis\Client([
+			'host' => $options['host'],
+			'port' => $options['port'],
+			'timeout' => 0,
+			'async' => false,
+		]);
 
 		if (!$this->adapter)
 		{
@@ -47,7 +46,7 @@ class Redis
 	 */
 	public function flush()
 	{
-		$this->adapter->flushDb();
+		$this->adapter->flushdb();
 	}
 
 	/**
@@ -59,7 +58,7 @@ class Redis
 	{
 		$data = $this->adapter->get($key);
 
-		return $data ? $data : null;
+		return $data ? unserialize($data) : null;
 	}
 
 	/**
@@ -69,7 +68,7 @@ class Redis
 	 */
 	public function write($key, $value, $expire)
 	{
-		$this->adapter->setAndExpire($key, $value, $expire);
+		$this->adapter->setex($key, $expire, serialize($value));
 	}
 
 	/**
@@ -77,6 +76,6 @@ class Redis
 	 */
 	public function delete($key)
 	{
-		$this->adapter->delete($key);
+		$this->adapter->del($key);
 	}
 }
